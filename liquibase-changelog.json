@@ -1,0 +1,83 @@
+[
+  {
+    "changeSet": {
+      "id": "0",
+      "author": "dsamuel",
+      "changes": [
+        {
+          "modifyDataType": {
+            "tableName": "DATABASECHANGELOG",
+            "columnName": "FILENAME",
+            "newDataType": "varchar(255)"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "changeSet" : {
+      "id" : "1",
+      "author" : "dsamuel",
+      "changes" : [
+        {
+          "createTable" : {
+            "tableName" : "users",
+            "columns" : [
+              {
+                "column" : {
+                  "name" : "email",
+                  "type" : "varchar(255)",
+                  "constraints" : {
+                    "primaryKey" : true,
+                    "nullable" : false
+                  }
+                }
+              },
+              {
+                "column" : {
+                  "name" : "name",
+                  "type" : "varchar(255)",
+                  "constraints" : {
+                    "nullable" : false
+                  }
+                }
+              },
+              {
+                "column" : {
+                  "name" : "theme",
+                  "type" : "varchar(30)",
+                  "constraints" : {
+                    "nullable" : false
+                  }
+                }
+              },
+              {
+                "column" : {
+                  "name" : "previewAccess",
+                  "type" : "varchar(10)",
+                  "constraints" : {
+                    "nullable" : false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "changeSet" : {
+      "id" : "2",
+      "author" : "dsamuel",
+      "changes" : [
+        {
+          "loadData" : {
+            "tableName" : "users",
+            "file" : "/home/ec2-user/users.csv"
+          }
+        }
+      ]
+    }
+  }
+]
