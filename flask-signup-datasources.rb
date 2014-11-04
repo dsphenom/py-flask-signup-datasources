@@ -45,7 +45,7 @@ template do
   parameter 'MySqlInstanceType',
             :Description => 'MySQL Server instance type',
             :Type => 'String',
-            :Default => 'm3.medium',
+            :Default => 't2.small',
             :AllowedValues => [
                 't2.micro',
                 't2.small',
