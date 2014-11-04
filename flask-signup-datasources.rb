@@ -10,7 +10,7 @@ template do
 
   value :AWSTemplateFormatVersion => '2010-09-09'
 
-  value :Description => 'New Startup SignUp Persistent Data Stores: RDS MySQL, Custom Resource with Liquibase, SQS queue and SNS topic.'
+  value :Description => 'New Startup SignUp Persistent Data Stores: MySQL, Custom Resource with Liquibase, SQS queue and SNS topic.'
 
   mapping 'AWSRegionAmznLinuxAMI',
           :'eu-west-1' => { :hvm => 'ami-892fe1fe', :pvm => 'ami-d02386a7' },
@@ -29,6 +29,27 @@ template do
             :AllowedValues => [
                 't2.micro',
                 't2.small',
+                't2.medium',
+                'm3.medium',
+                'm3.large',
+                'm3.xlarge',
+                'm3.2xlarge',
+                'c2.large',
+                'c2.xlarge',
+                'c3.2xlarge',
+                'c3.4xlarge',
+                'c3.8xlarge',
+            ],
+            :ConstraintDescription => 'must be a valid EC2 instance type.'
+
+  parameter 'MySqlInstanceType',
+            :Description => 'MySQL Server instance type',
+            :Type => 'String',
+            :Default => 'm3.medium',
+            :AllowedValues => [
+                't2.micro',
+                't2.small',
+                't2.medium',
                 'm3.medium',
                 'm3.large',
                 'm3.xlarge',
@@ -155,21 +176,63 @@ template do
       ),
   }
 
-  resource 'RdsMySqlRdbms', :Type => 'AWS::RDS::DBInstance', :Properties => {
-      :DBName => ref('DbName'),
-      :DBSecurityGroups => [ ref('RdsMySqlSecurityGroup') ],
-      :AllocatedStorage => '5',
-      :DBInstanceClass => 'db.m3.medium',
-      :Engine => 'MySQL',
-      :MasterUsername => ref('DbUser'),
-      :MasterUserPassword => ref('DbPassword'),
+  resource 'MySqlRdbms', :Type => 'AWS::EC2::Instance', :Metadata => { :'AWS::CloudFormation::Init' => { :config => { :packages => { :yum => { :mysql => [], :'mysql-server' => [], :'mysql-libs' => [] } }, :files => { :'/tmp/setup.mysql' => { :content => join('', "DELETE FROM mysql.user WHERE User='';\n", "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');\n", "DROP DATABASE test;\n", "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';\n", 'CREATE DATABASE ', ref('DbName'), ";\n", 'GRANT ALL ON ', ref('DbName'), '.* TO \'', ref('DbUser'), '\'@\'%\' IDENTIFIED BY \'', ref('DbPassword'), "';\n", "FLUSH PRIVILEGES;\n"), :mode => '000644', :owner => 'root', :group => 'root' } }, :services => { :sysvinit => { :mysqld => { :enabled => 'true', :ensureRunning => 'true' } } } } } },   :Properties => {
+     :ImageId => find_in_map('AWSRegionAmznLinuxAMI', ref('AWS::Region'), 'hvm'),
+     :InstanceType => ref('MySqlInstanceType'),
+     :SecurityGroups => [ ref('MySqlSecurityGroup') ],
+     :Tags => [
+        {
+            :Key => 'Name',
+            :Value => 'MySQL Server',
+        }
+        ],
+     :UserData => base64(
+          join('',
+               "#!/bin/bash -x\n",
+               "exec &> /home/ec2-user/userdata.log\n",
+               "yum update -y aws-cfn-bootstrap\n",
+               "# Helper function\n",
+               "function error_exit\n",
+               "{\n",
+               '  /opt/aws/bin/cfn-signal -e 1 -r "$1" \'',
+               ref('MySqlWaitConditionHandle'),
+               "'\n",
+               "  exit 1\n",
+               "}\n",
+               '/opt/aws/bin/cfn-init -s ',
+               aws_stack_id,
+               ' -r MySqlRdbms ',
+               '    --region ',
+               ref('AWS::Region'),
+               " || error_exit 'Failed to run cfn-init'\n",
+               "# Setup MySQL, create a user and a database\n",
+               'mysqladmin -u root password \'',
+               ref('DbPassword'),
+               "' || error_exit 'Failed to initialize root password'\n",
+               'mysql -u root --password=\'',
+               ref('DbPassword'),
+               "' < /tmp/setup.mysql || error_exit 'Failed to initialize database'\n",
+               "# All is well so signal success\n",
+               '/opt/aws/bin/cfn-signal -e 0 -r "MySQL Server setup complete" \'',
+               ref('MySqlWaitConditionHandle'),
+               "'\n",
+          )
+      ),
   }
 
-  resource 'RdsMySqlSecurityGroup', :Type => 'AWS::RDS::DBSecurityGroup', :Properties => {
-      :DBSecurityGroupIngress => [
-          { :CIDRIP => '172.31.0.0/16' },
+  resource 'MySqlSecurityGroup', :Type => 'AWS::EC2::SecurityGroup', :Properties => {
+      :GroupDescription => 'Enable MySQL access via port 3306',
+      :SecurityGroupIngress => [
+          { :IpProtocol => 'tcp', :FromPort => '3306', :ToPort => '3306', :CidrIp => '172.31.0.0/16' },
       ],
-      :GroupDescription => 'VPC Access to RDBMS',
+  }
+
+  resource 'MySqlWaitConditionHandle', :Type => 'AWS::CloudFormation::WaitConditionHandle'
+    
+  resource 'MySqlWaitCondition', :Type => 'AWS::CloudFormation::WaitCondition', :DependsOn => 'MySqlRdbms', :Properties => {
+      :Count => '1',
+      :Handle => ref('MySqlWaitConditionHandle'),
+      :Timeout => '600',
   }
 
   resource 'NewSignupQueue', :Type => 'AWS::SQS::Queue'
@@ -269,13 +332,12 @@ template do
 
   change_log = JSON.parse(File.read('liquibase-changelog.json'))
 
-  resource 'RdsMySqlSchema', :Type => 'Custom::DatabaseSchema', :DependsOn => [ 'LiquibaseRunnerAutoScalingGroup', 'RdsMySqlRdbms', 'LiquibaseCustomResourceQueue', 'LiquibaseCustomResourceTopic', 'LiquibaseCustomResourceQueuePolicy' ], :Version => '1.0', :Properties => {
+  resource 'MySqlSchema', :Type => 'Custom::DatabaseSchema', :DependsOn => [ 'LiquibaseRunnerAutoScalingGroup', 'MySqlRdbms', 'LiquibaseCustomResourceQueue', 'LiquibaseCustomResourceTopic', 'LiquibaseCustomResourceQueuePolicy' ], :Version => '1.0', :Properties => {
       :ServiceToken => ref('LiquibaseCustomResourceTopic'),
       :DatabaseURL => join('',
            'jdbc:mysql://',
-           get_att('RdsMySqlRdbms', 'Endpoint.Address'),
-           ':',
-           get_att('RdsMySqlRdbms', 'Endpoint.Port'),
+           get_att('MySqlRdbms', 'PublicDnsName'),
+           ':3306',
            '/',
            ref('DbName'),
       ),
@@ -286,7 +348,7 @@ template do
 
   output 'MySqlEndpoint',
          :Description => 'Relational database endpoint for the signup data store',
-         :Value => get_att('RdsMySqlRdbms', 'Endpoint.Address')
+         :Value => get_att('MySqlRdbms', 'PublicDnsName')
 
   output 'SignUpSnsTopic',
          :Description => 'SNS Topic ARN',
