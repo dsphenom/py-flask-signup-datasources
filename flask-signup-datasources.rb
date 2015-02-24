@@ -13,6 +13,7 @@ template do
   value :Description => 'New Startup SignUp Persistent Data Stores: MySQL, Custom Resource with Liquibase, SQS queue and SNS topic.'
 
   mapping 'AWSRegionAmznLinuxAMI',
+          :'eu-central-1' => { :hvm => 'ami-04003319', :pvm => 'ami-0600331b' },
           :'eu-west-1' => { :hvm => 'ami-892fe1fe', :pvm => 'ami-d02386a7' },
           :'sa-east-1' => { :hvm => 'ami-c9e649d4', :pvm => 'ami-e1f15bfc' },
           :'us-east-1' => { :hvm => 'ami-76817c1e', :pvm => 'ami-904be6f8' },
