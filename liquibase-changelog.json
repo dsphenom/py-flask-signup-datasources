@@ -79,5 +79,27 @@
         }
       ]
     }
+  },
+  {
+    "changeSet": {
+      "id": "3",
+      "author": "dsamuel",
+      "changes": [
+        { 
+          "addColumn": {
+            "tableName": "users",
+            "columns": [
+              { 
+                "column": {
+                  "name": "age",
+                  "type": "int",
+                  "defaultValueNumeric": "0"
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
   }
 ]
