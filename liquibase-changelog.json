@@ -101,5 +101,62 @@
         }
       ]
     }
+  },
+  {
+    "changeSet" : {
+      "id" : "4",
+      "author" : "dsamuel",
+      "changes" : [
+        {
+          "createTable" : {
+            "tableName" : "blogs",
+            "columns" : [
+              {
+                "column" : {
+                  "name" : "id",
+                  "type" : "int",
+                  "constraints" : {
+                    "primaryKey" : true,
+                    "nullable" : false
+                  }
+                }
+              },
+              {
+                "column" : {
+                  "name" : "author",
+                  "type" : "varchar(50)",  
+                  "constraints" : {
+                    "nullable" : false
+                  }
+                }
+              },
+              {
+                "column" : {
+                  "name" : "post",
+                  "type" : "varchar(140)",
+                  "constraints" : {
+                    "nullable" : false
+                  }
+                }
+              }
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "changeSet" : {
+      "id" : "5",
+      "author" : "dsamuel",
+      "changes" : [
+        {
+          "loadData" : {
+            "tableName" : "blogs",
+            "file" : "/home/ec2-user/blogs.csv"
+          }
+        }
+      ]
+    }
   }
 ]
